@@ -97,6 +97,8 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
     return "nvptx64";
   case nvptx:
     return "nvptx";
+  case otf:
+    return "otf";
   case ppc64:
     return "powerpc64";
   case ppc64le:
@@ -525,6 +527,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
       .Case("loongarch64", loongarch64)
       .Case("dxil", dxil)
       .Case("xtensa", xtensa)
+      .Case("otf", otf)
       .Default(UnknownArch);
 }
 
@@ -680,6 +683,7 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
                   "dxilv1.9"},
                  Triple::dxil)
           .Case("xtensa", Triple::xtensa)
+          .Case("otf", Triple::otf)
           .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -986,6 +990,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::msp430:
   case Triple::nvptx64:
   case Triple::nvptx:
+  case Triple::otf:
   case Triple::ppc64le:
   case Triple::ppcle:
   case Triple::r600:
@@ -1755,6 +1760,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
   case llvm::Triple::nvptx:
+  case llvm::Triple::otf:
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::r600:
@@ -1845,6 +1851,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::bpfeb:
   case Triple::bpfel:
   case Triple::msp430:
+  case Triple::otf:
   case Triple::systemz:
   case Triple::ve:
     T.setArch(UnknownArch);
@@ -1963,6 +1970,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::lanai:
   case Triple::m68k:
   case Triple::msp430:
+  case Triple::otf:
   case Triple::r600:
   case Triple::shave:
   case Triple::sparcel:

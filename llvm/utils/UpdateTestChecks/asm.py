@@ -276,6 +276,12 @@ ASM_FUNCTION_LOONGARCH_RE = re.compile(
     flags=(re.M | re.S),
 )
 
+ASM_FUNCTION_OTF_RE = re.compile(
+    r"^(?P<func>[^:]+): +# @(?P=func)\n(?P<body>.*?)\nLfunc_end\d+:\n",
+    flags=(re.M | re.S),
+)
+
+
 SCRUB_X86_SHUFFLES_RE = re.compile(
     r"^(\s*\w+) [^#\n]+#+ ((?:[xyz]mm\d+|mem)( \{%k\d+\}( \{z\})?)? = .*)$", flags=re.M
 )
@@ -555,6 +561,9 @@ def scrub_asm_loongarch(asm, args):
     asm = common.SCRUB_TRAILING_WHITESPACE_RE.sub(r"", asm)
     return asm
 
+def scrub_asm_otf(asm, args):
+    return asm
+
 
 # Returns a tuple of a scrub function and a function regex. Scrub function is
 # used to alter function body in some way, for example, remove trailing spaces.
@@ -618,6 +627,7 @@ def get_run_handler(triple):
         "nvptx": (scrub_asm_nvptx, ASM_FUNCTION_NVPTX_RE),
         "loongarch32": (scrub_asm_loongarch, ASM_FUNCTION_LOONGARCH_RE),
         "loongarch64": (scrub_asm_loongarch, ASM_FUNCTION_LOONGARCH_RE),
+        "otf": (scrub_asm_otf, ASM_FUNCTION_OTF_RE),
     }
     handler = None
     best_prefix = ""
