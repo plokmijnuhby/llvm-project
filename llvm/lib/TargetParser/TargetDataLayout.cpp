@@ -661,6 +661,8 @@ std::string Triple::computeDataLayout(StringRef ABIName) const {
     return computeWebAssemblyDataLayout(*this);
   case Triple::ve:
     return computeVEDataLayout(*this);
+  case Triple::otf:
+    return "E-p:32:32";
 
   case Triple::amdil:
   case Triple::amdil64:
@@ -672,10 +674,6 @@ std::string Triple::computeDataLayout(StringRef ABIName) const {
   case Triple::renderscript64:
     // These are all virtual ISAs with no LLVM backend, and therefore no fixed
     // LLVM data layout.
-    return "";
-
-  case Triple::otf:
-    // TODO: Fix later
     return "";
 
   case Triple::UnknownArch:

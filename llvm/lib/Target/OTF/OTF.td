@@ -1,40 +1,42 @@
 include "llvm/Target/Target.td"
 
-foreach i = 1-63 in {
+foreach i = 0-63 in {
   def R#i : Register<"R"#i> {
     let HWEncoding = i;
     let Namespace = "OTF";
   }
 }
-def GPR11 : RegisterClass<"OTF", [i16], 1, (sequence "R%u", 1, 63)>;
+def GPR8 : RegisterClass<"OTF", [i1, i8, i16], 1, (sequence "R%u", 0, 63)>;
 
 def CC_OTF : CallingConv<[
-  CCIfType<[i16], CCAssignToReg<!foreach(i, !range(1, 63), !cast<Register>("R"#i))>>,
-  CCIfType<[i16], CCAssignToStack<2, 2>>
+  CCIfType<[i8], CCAssignToReg<!foreach(i, !range(0, 63), !cast<Register>("R"#i))>>,
+  CCIfType<[i8], CCAssignToStack<0, 0>>
 ]>;
 
+def imm8 : Operand<i8>, ImmLeaf<i8, [{ return isUInt<8>(Imm); }]>;
 def imm16 : Operand<i16>, ImmLeaf<i16, [{ return isUInt<16>(Imm); }]>;
-
-def RetNode : SDNode<"OTFISD::RET", SDTypeProfile<0, 0, []>, [SDNPHasChain]>;
-def CallNode : SDNode<"OTFISD::CALL", SDTypeProfile<0, 2, [
-    SDTCisVT<0, i16>, SDTCisVT<1, i16>
-]>, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 
 def RET : Instruction {
   let Namespace = "OTF";
   dag OutOperandList = (outs);
-  dag InOperandList = (ins);
-  list<dag> Pattern = [(RetNode)];
+  dag InOperandList = (ins variable_ops);
   bit isPseudo = true;
   bit isReturn = true;
   bit isBarrier = true;
   bit isTerminator = true;
 }
+def MOV : Instruction {
+  let Namespace = "OTF";
+  dag OutOperandList = (outs GPR8:$dst);
+  dag InOperandList = (ins imm8:$src);
+  list<dag> Pattern = [(set GPR8:$dst, imm8:$src)];
+  bit isPseudo = true;
+  bit isMoveImm = true;
+}
 def CALL : Instruction {
   let Namespace = "OTF";
   dag OutOperandList = (outs);
   dag InOperandList = (ins imm16:$sequenceIndex, imm16:$lookupListIndex);
-  list<dag> Pattern = [(CallNode imm16:$sequenceIndex, imm16:$lookupListIndex)];
   let AsmString = "CALL $sequenceIndex $lookupListIndex";
   bit isCall = true;
   bit hasSideEffects = true;
