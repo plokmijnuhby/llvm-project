@@ -103,17 +103,20 @@ class OTFTargetLowering : public TargetLowering {
     CCState CCInfo(CallConv, isVarArg, MF, RetLocs, *DAG.getContext());
     CCInfo.AnalyzeReturn(Outs, CC_OTF);
     SmallVector<SDValue> Ops;
+    SDValue Glue;
     for (unsigned i = 0; i < RetLocs.size(); i++) {
       CCValAssign VA = RetLocs[i];
       if (VA.isRegLoc()) {
         Register reg = VA.getLocReg();
-        Chain = DAG.getCopyToReg(Chain, DL, reg, OutVals[i]);
+        Chain = DAG.getCopyToReg(Chain, DL, reg, OutVals[i], Glue);
+        Glue = Chain.getValue(1);
         Ops.push_back(DAG.getRegister(reg, MVT::i8));
       } else {
         reportFatalInternalError("Stack returns not implemented yet");
       }
     }
     Ops.push_back(Chain);
+    Ops.push_back(Glue);
     return SDValue(DAG.getMachineNode(OTF::RET, DL, MVT::Other, Ops), 0);
   }
 
