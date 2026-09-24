@@ -1,7 +1,7 @@
-#include "llvm/CodeGen/TargetLowering.h"
-
 #ifndef LLVM_LIB_TARGET_OTF_OTFFRAMELOWERING_H
 #define LLVM_LIB_TARGET_OTF_OTFFRAMELOWERING_H
+
+#include "llvm/CodeGen/TargetLowering.h"
 
 namespace llvm {
 class OTFFrameLowering : public TargetFrameLowering {

@@ -4,6 +4,12 @@
 define i8 @simple(i8 %x) {
 ; CHECK-LABEL: simple:
 ; CHECK:       # %bb.0:
+  ret i8 %x
+}
+
+define i8 @simple2(i8 %x) {
+; CHECK-LABEL: simple2:
+; CHECK:       # %bb.0:
 ; CHECK-NEXT:  	CALL 1 __set_0
 ; CHECK-NEXT:  	CALL 0 __del_1
 ; CHECK-NEXT:  	CALL 0 __push_0

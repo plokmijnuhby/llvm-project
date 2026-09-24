@@ -1,4 +1,6 @@
 #include "OTFFrameLowering.h"
+#include "OTFMachineFunctionInfo.h"
+#include "OTFRegAlloc.h"
 #include "TargetInfo/OTFTargetInfo.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
@@ -8,7 +10,6 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Target/CodeGenCWrappers.h"
@@ -17,7 +18,6 @@
 #define GET_SUBTARGETINFO_CTOR
 #include "OTFGenSubtargetInfo.inc"
 
-#define GET_INSTRINFO_ENUM
 #define GET_INSTRINFO_HEADER
 #define GET_INSTRINFO_CTOR_DTOR
 #include "OTFGenInstrInfo.inc"
@@ -31,11 +31,6 @@ using namespace llvm;
 
 #define GET_CALLING_CONV_IMPL
 #include "OTFGenCallingConv.inc"
-
-class OTFMachineFunctionInfo : public MachineFunctionInfo {
-public:
-  size_t num_args;
-};
 
 class OTFRegisterInfo : public OTFGenRegisterInfo {
   bool eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
@@ -178,52 +173,6 @@ namespace llvm {
 void initializeOTFISelLegacyPass(PassRegistry &Registry);
 } // namespace llvm
 INITIALIZE_PASS(OTFISelLegacy, "OTF-isel", "OTF instruction select", false,
-                false);
-
-class OTFRegAlloc : public MachineFunctionPass {
-  bool runOnMachineFunction(MachineFunction &MF) {
-    MCInstrDesc CALL = MF.getSubtarget().getInstrInfo()->get(OTF::CALL);
-    MachineBasicBlock &front = MF.front();
-    for (MachineInstr &MI : make_early_inc_range(front)) {
-      switch (MI.getOpcode()) {
-      case OTF::RET:
-        break;
-      case OTF::MOV: {
-        std::string lookup_name =
-            (Twine("__push_") + Twine(MI.getOperand(1).getImm())).str();
-        const char *stored_name =
-            MF.getContext().allocateString(lookup_name).data();
-        BuildMI(front, MI, MI.getDebugLoc(), CALL)
-            .addImm(0)
-            .addExternalSymbol(stored_name);
-        break;
-      }
-      default:
-        llvm_unreachable("An instruction was not processed correctly");
-      }
-      MI.eraseFromParent();
-    }
-
-    auto iter_pos = front.begin();
-    DebugLoc DL = iter_pos->getDebugLoc();
-    size_t num_args = MF.getInfo<OTFMachineFunctionInfo>()->num_args;
-    bool ret = num_args > 0;
-    for (size_t i = 0; i < num_args; i++) {
-      BuildMI(front, iter_pos, DL, CALL).addImm(1).addExternalSymbol("__set_0");
-      BuildMI(front, iter_pos, DL, CALL).addImm(0).addExternalSymbol("__del_1");
-    }
-    return ret;
-  }
-
-public:
-  static char ID;
-  OTFRegAlloc() : MachineFunctionPass(ID) {}
-};
-char OTFRegAlloc::ID = 0;
-namespace llvm {
-void initializeOTFRegAllocPass(PassRegistry &Registry);
-} // namespace llvm
-INITIALIZE_PASS(OTFRegAlloc, "OTF-reg-alloc", "OTF register allocation", false,
                 false);
 
 class OTFPassConfig : public TargetPassConfig {
