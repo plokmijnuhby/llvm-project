@@ -13,6 +13,7 @@ add_public_tablegen_target(OTFCommonTableGen)
 
 add_llvm_target(OTFCodeGen
   OTFAsmPrinter.cpp
+  OTFRegAlloc.cpp
   OTFTargetMachine.cpp
 
   ADD_TO_COMPONENT

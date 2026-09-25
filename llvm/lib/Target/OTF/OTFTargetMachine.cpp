@@ -18,6 +18,7 @@
 #define GET_SUBTARGETINFO_CTOR
 #include "OTFGenSubtargetInfo.inc"
 
+#define GET_INSTRINFO_ENUM
 #define GET_INSTRINFO_HEADER
 #define GET_INSTRINFO_CTOR_DTOR
 #include "OTFGenInstrInfo.inc"
