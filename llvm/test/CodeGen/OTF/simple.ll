@@ -15,3 +15,12 @@ define i8 @simple2(i8 %x) {
 ; CHECK-NEXT:  	CALL 0 __push_0
   ret i8 0
 }
+
+define i8 @increment(i8 %x) {
+; CHECK-LABEL: increment:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:  	CALL 1 __add_1
+; CHECK-NEXT:  	CALL 1 __unset_magic
+    %ret = add i8 %x, 1
+    ret i8 %ret
+}

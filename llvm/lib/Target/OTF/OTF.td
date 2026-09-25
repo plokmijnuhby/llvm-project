@@ -33,6 +33,14 @@ def MOV : Instruction {
   bit isPseudo = true;
   bit isMoveImm = true;
 }
+def ADD : Instruction {
+  let Namespace = "OTF";
+  dag OutOperandList = (outs GPR8:$out);
+  dag InOperandList = (ins GPR8:$a, imm8:$b);
+  list<dag> Pattern = [(set GPR8:$out, (add i8:$a, imm8:$b))];
+  bit isPseudo = true;
+  bit isMoveImm = true;
+}
 def CALL : Instruction {
   let Namespace = "OTF";
   dag OutOperandList = (outs);
