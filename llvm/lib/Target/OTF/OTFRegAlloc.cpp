@@ -10,18 +10,16 @@
 
 using namespace llvm;
 
-void call(MachineBasicBlock &MBB, MachineBasicBlock::iterator &MI, DebugLoc DL,
-          size_t index, const char *name) {
-  BuildMI(MBB, MI, DL,
-          MBB.getParent()->getSubtarget().getInstrInfo()->get(OTF::CALL))
-      .addImm(index)
-      .addExternalSymbol(name);
-}
-
 bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
   MCContext &context = MF.getContext();
   MachineBasicBlock &front = MF.front();
   SmallVector<Register> in_use;
+  auto call = [&](MachineBasicBlock::iterator I, DebugLoc DL, size_t index,
+                  const char *name) {
+    BuildMI(front, I, DL, MF.getSubtarget().getInstrInfo()->get(OTF::CALL))
+        .addImm(index)
+        .addExternalSymbol(name);
+  };
   for (MachineInstr &MI : make_early_inc_range(reverse(front))) {
     DebugLoc DL = MI.getDebugLoc();
     switch (MI.getOpcode()) {
@@ -31,7 +29,7 @@ bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
           std::string lookup_name =
               (Twine("__push_") + Twine(MI.getOperand(1).getImm())).str();
           const char *stored_name = context.allocateString(lookup_name).data();
-          call(front, MachineBasicBlock::iterator(MI), DL, i, stored_name);
+          call(MachineBasicBlock::iterator(MI), DL, i, stored_name);
           in_use.erase(in_use.begin() + i);
           break;
         }
@@ -43,9 +41,8 @@ bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
           std::string lookup_name =
               (Twine("__add_") + Twine(MI.getOperand(2).getImm())).str();
           const char *stored_name = context.allocateString(lookup_name).data();
-          call(front, MachineBasicBlock::iterator(MI), DL, i + 1, stored_name);
-          call(front, MachineBasicBlock::iterator(MI), DL, i + 1,
-               "__unset_magic");
+          call(MachineBasicBlock::iterator(MI), DL, i + 1, stored_name);
+          call(MachineBasicBlock::iterator(MI), DL, i + 1, "__unset_magic");
           in_use[i] == MI.getOperand(1).getReg();
           break;
         }
@@ -77,8 +74,8 @@ bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
       }
     }
     if (!used) {
-      call(front, iter_pos, DL, 1, "__set_0");
-      call(front, iter_pos, DL, 0, "__del_1");
+      call(iter_pos, DL, 1, "__set_0");
+      call(iter_pos, DL, 0, "__del_1");
     }
   }
   return ret;
