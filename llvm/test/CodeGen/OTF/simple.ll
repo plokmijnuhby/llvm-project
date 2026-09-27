@@ -7,20 +7,30 @@ define i8 @simple(i8 %x) {
   ret i8 %x
 }
 
-define i8 @simple2(i8 %x) {
-; CHECK-LABEL: simple2:
+define i8 @constant(i8 %x) {
+; CHECK-LABEL: constant:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:  	CALL 1 __set_0
-; CHECK-NEXT:  	CALL 0 __del_1
-; CHECK-NEXT:  	CALL 0 __push_0
+; CHECK-NEXT:  	CALL 1 __set_0:0 __set_0:1
+; CHECK-NEXT:  	CALL 0 __del_1:0 __del_1:1
+; CHECK-NEXT:  	CALL 0 __push_0:0 __push_0:1
   ret i8 0
 }
 
 define i8 @increment(i8 %x) {
 ; CHECK-LABEL: increment:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:  	CALL 1 __add_1
-; CHECK-NEXT:  	CALL 1 __unset_magic
+; CHECK-NEXT:  	CALL 1 __add_1:0 __add_1:1
+; CHECK-NEXT:  	CALL 1 __unset_magic:0 __unset_magic:1
     %ret = add i8 %x, 1
     ret i8 %ret
+}
+
+declare void @external_func()
+
+define void @call() {
+; CHECK-LABEL: call:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:  	CALL 0 external_func:0 external_func:1
+    call void @external_func()
+    ret void
 }

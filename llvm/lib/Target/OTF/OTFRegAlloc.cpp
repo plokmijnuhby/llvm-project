@@ -18,7 +18,8 @@ bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
                   const char *name) {
     BuildMI(front, I, DL, MF.getSubtarget().getInstrInfo()->get(OTF::CALL))
         .addImm(index)
-        .addExternalSymbol(name);
+        .addExternalSymbol(name, 0)
+        .addExternalSymbol(name, 1);
   };
   for (MachineInstr &MI : make_early_inc_range(reverse(front))) {
     DebugLoc DL = MI.getDebugLoc();
@@ -34,6 +35,7 @@ bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
           break;
         }
       }
+      MI.eraseFromParent();
       break;
     case OTF::ADD:
       for (size_t i = 0; i < in_use.size(); i++) {
@@ -47,15 +49,18 @@ bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
           break;
         }
       }
+      MI.eraseFromParent();
       break;
     case OTF::RET:
       for (MachineOperand &MO : MI.operands())
         in_use.push_back(MO.getReg());
+      MI.eraseFromParent();
+      break;
+    case OTF::CALL:
       break;
     default:
       llvm_unreachable("An instruction was not processed correctly");
     }
-    MI.eraseFromParent();
   }
 
   auto iter_pos = front.begin();

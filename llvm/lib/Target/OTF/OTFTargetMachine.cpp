@@ -28,6 +28,9 @@
 #define GET_REGINFO_TARGET_DESC
 #include "OTFGenRegisterInfo.inc"
 
+#define GET_SDNODE_ENUM
+#include "OTFGenSDNodeInfo.inc"
+
 using namespace llvm;
 
 #define GET_CALLING_CONV_IMPL
@@ -112,8 +115,37 @@ class OTFTargetLowering : public TargetLowering {
       }
     }
     Ops.push_back(Chain);
-    Ops.push_back(Glue);
+    if (Glue.getNode()) {
+      Ops.push_back(Glue);
+    }
     return SDValue(DAG.getMachineNode(OTF::RET, DL, MVT::Other, Ops), 0);
+  }
+  SDValue LowerCall(CallLoweringInfo &CLI,
+                    SmallVectorImpl<SDValue> &InVals) const override {
+    SelectionDAG &DAG = CLI.DAG;
+    SDLoc DL = CLI.DL;
+    MachineFunction &MF = DAG.getMachineFunction();
+    SmallVector<CCValAssign, 16> ArgLocs;
+    CCState CCInfo(CLI.CallConv, CLI.IsVarArg, MF, ArgLocs, *DAG.getContext());
+    CCInfo.AnalyzeCallOperands(CLI.Outs, CC_OTF);
+    assert(ArgLocs.size() == 0);
+    SDValue hi, lo;
+    if (auto *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee)) {
+      hi = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i8, 0, 0);
+      lo = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i8, 0, 1);
+    } else {
+      reportFatalInternalError("Non global address call not implemented yet");
+    }
+    SDValue zero = DAG.getTargetConstant(0, DL, MVT::i16);
+    SDValue Chain =
+        DAG.getNode(OTFISD::CALL, DL, MVT::Other, CLI.Chain, zero, hi, lo);
+
+    SmallVector<CCValAssign, 16> RVLocs;
+    CCState RetCCInfo(CLI.CallConv, CLI.IsVarArg, MF, RVLocs,
+                      *DAG.getContext());
+    RetCCInfo.AnalyzeCallResult(CLI.Ins, CC_OTF);
+    assert(RVLocs.size() == 0);
+    return Chain;
   }
 
 public:
