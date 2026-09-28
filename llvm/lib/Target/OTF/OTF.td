@@ -40,7 +40,7 @@ def MOV : OTFInst<(ins imm8:$src), (outs GPR8:$dst)> {
 def ADD : OTFInst<(ins GPR8:$a, imm8:$b), (outs GPR8:$out)> {
   list<dag> Pattern = [(set GPR8:$out, (add i8:$a, imm8:$b))];
   bit isPseudo = true;
-  bit isMoveImm = true;
+  bit isAdd = true;
 }
 def CALL : OTFInst<(ins imm16:$sequenceIndex, imm8:$lookupHi, imm8:$lookupLo), (outs)> {
   list<dag> Pattern = [
