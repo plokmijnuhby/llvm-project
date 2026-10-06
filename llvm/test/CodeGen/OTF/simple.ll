@@ -10,27 +10,49 @@ define i8 @simple(i8 %x) {
 define i8 @constant(i8 %x) {
 ; CHECK-LABEL: constant:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:  	CALL 1 __set_0:0 __set_0:1
-; CHECK-NEXT:  	CALL 0 __del_1:0 __del_1:1
-; CHECK-NEXT:  	CALL 0 __push_0:0 __push_0:1
+; CHECK-NEXT:  	CALL 1 __set_0
+; CHECK-NEXT:  	CALL 0 __del_1
+; CHECK-NEXT:  	CALL 0 __push_0
   ret i8 0
 }
 
 define i8 @increment(i8 %x) {
 ; CHECK-LABEL: increment:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:  	CALL 1 __add_1:0 __add_1:1
-; CHECK-NEXT:  	CALL 1 __unset_magic:0 __unset_magic:1
+; CHECK-NEXT:  	CALL 1 __add_1
+; CHECK-NEXT:  	CALL 1 __unset_magic
     %ret = add i8 %x, 1
     ret i8 %ret
 }
 
 declare void @external_func()
+declare void @external_func_2()
 
 define void @call() {
 ; CHECK-LABEL: call:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:  	CALL 0 external_func:0 external_func:1
+; CHECK-NEXT:  	CALL 0 external_func
     call void @external_func()
+    ret void
+}
+
+define void @branch(i1 %x) {
+; CHECK-LABEL: branch:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:  	CALL 1 __and_1
+; CHECK-NEXT:  	CALL 1 __push_0
+; CHECK-NEXT:  	BR_EQ 1 2 LBB4_2 LBB4_3
+; CHECK-NEXT:  LBB4_3:
+; CHECK-NEXT:  	BR LBB4_1
+; CHECK-NEXT:  LBB4_1:                                 # %True
+; CHECK-NEXT:  	CALL 0 external_func
+; CHECK-NEXT:  LBB4_2:                                 # %False
+; CHECK-NEXT:  	CALL 0 external_func_2
+    br i1 %x, label %True, label %False
+True:
+    call void @external_func()
+    ret void
+False:
+    call void @external_func_2()
     ret void
 }

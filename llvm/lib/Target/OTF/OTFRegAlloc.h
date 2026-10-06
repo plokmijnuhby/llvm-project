@@ -4,6 +4,7 @@
 #include "OTFMachineFunctionInfo.h"
 
 class OTFRegAlloc : public MachineFunctionPass {
+  SmallVector<Register> processBlock(MachineBasicBlock &MBB);
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 public:

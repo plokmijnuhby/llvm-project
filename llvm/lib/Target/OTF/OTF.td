@@ -8,8 +8,8 @@ foreach i = 0-63 in {
 }
 def GPR8 : RegisterClass<"OTF", [i8, i16], 1, (sequence "R%u", 0, 63)>;
 
-def callNode : SDNode<"OTFISD::CALL", SDTypeProfile<0, 3, [
-    SDTCisVT<0, i16>, SDTCisVT<1, i8>, SDTCisVT<2, i8>
+def callNode : SDNode<"OTFISD::CALL", SDTypeProfile<0, 2, [
+    SDTCisVT<0, i8>, SDTCisVT<1, i8>
 ]>, [SDNPHasChain]>;
 
 def CC_OTF : CallingConv<[
@@ -18,37 +18,68 @@ def CC_OTF : CallingConv<[
 ]>;
 
 def imm8 : Operand<i8>, ImmLeaf<i8, [{ return isUInt<8>(Imm); }]>;
-def imm16 : Operand<i16>, TImmLeaf<i16, [{ return isUInt<16>(Imm); }]>;
+def imm16 : Operand<i16>;
 
 class OTFInst<dag ins, dag outs> : Instruction {
   let Namespace = "OTF";
-  dag OutOperandList = outs;
-  dag InOperandList = ins;
+  let OutOperandList = outs;
+  let InOperandList = ins;
 }
 
 def RET : OTFInst<(ins variable_ops), (outs)> {
-  bit isPseudo = true;
-  bit isReturn = true;
-  bit isBarrier = true;
-  bit isTerminator = true;
+  let isPseudo = true;
+  let isReturn = true;
+  let isBarrier = true;
+  let isTerminator = true;
 }
 def MOV : OTFInst<(ins imm8:$src), (outs GPR8:$dst)> {
-  list<dag> Pattern = [(set GPR8:$dst, imm8:$src)];
-  bit isPseudo = true;
-  bit isMoveImm = true;
+  let Pattern = [(set GPR8:$dst, imm8:$src)];
+  let isPseudo = true;
+  let isMoveImm = true;
 }
 def ADD : OTFInst<(ins GPR8:$a, imm8:$b), (outs GPR8:$out)> {
-  list<dag> Pattern = [(set GPR8:$out, (add i8:$a, imm8:$b))];
-  bit isPseudo = true;
-  bit isAdd = true;
+  let Pattern = [(set GPR8:$out, (add i8:$a, imm8:$b))];
+  let isPseudo = true;
+  let isAdd = true;
 }
-def CALL : OTFInst<(ins imm16:$sequenceIndex, imm8:$lookupHi, imm8:$lookupLo), (outs)> {
-  list<dag> Pattern = [
-    (callNode imm16:$sequenceIndex, tglobaladdr:$lookupHi, tglobaladdr:$lookupLo)
-  ];
-  let AsmString = "CALL $sequenceIndex $lookupHi $lookupLo";
-  bit isCall = true;
-  bit hasSideEffects = true;
+def AND : OTFInst<(ins GPR8:$a, imm8:$b), (outs GPR8:$out)> {
+  let Pattern = [(set GPR8:$out, (and i8:$a, imm8:$b))];
+  let isPseudo = true;
+}
+
+def other : Operand<OtherVT>;
+def BR_EQ_FALLTHROUGH : OTFInst<(ins GPR8:$left, GPR8:$right, other:$target), (outs)> {
+  let Pattern = [(brcc SETEQ, i8:$left, i8:$right, bb:$target)];
+  let isPseudo = true;
+  let isBranch = true;
+  let isCompare = true;
+  let isTerminator = true;
+}
+def BR_EQ : OTFInst<(ins imm8:$left, imm8:$right, other:$true, other:$false), (outs)> {
+  let AsmString = "BR_EQ $left $right $true $false";
+  let isBranch = true;
+  let isCompare = true;
+  let isBarrier = true;
+  let isTerminator = true;
+}
+def BR : OTFInst<(ins other:$target), (outs)> {
+  let Pattern = [(br bb:$target)];
+  let AsmString = "BR $target";
+  let isBranch = true;
+  let isBarrier = true;
+  let isTerminator = true;
+}
+def CALL_SPLIT : OTFInst<(ins GPR8:$lookupHi, GPR8:$lookupLo), (outs)> {
+  let Pattern = [(callNode i8:$lookupHi, i8:$lookupLo)];
+  let isPseudo = true;
+  let isCall = true;
+  let hasSideEffects = true;
+  let usesCustomInserter = true;
+}
+def CALL : OTFInst<(ins imm16:$sequenceIndex, imm16:$lookup), (outs)> {
+  let AsmString = "CALL $sequenceIndex $lookup";
+  let isCall = true;
+  let hasSideEffects = true;
 }
 
 def otf_ptr_rc : RegisterClassLike;

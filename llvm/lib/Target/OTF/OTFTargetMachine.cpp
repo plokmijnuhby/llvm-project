@@ -136,9 +136,8 @@ class OTFTargetLowering : public TargetLowering {
     } else {
       reportFatalInternalError("Non global address call not implemented yet");
     }
-    SDValue zero = DAG.getTargetConstant(0, DL, MVT::i16);
     SDValue Chain =
-        DAG.getNode(OTFISD::CALL, DL, MVT::Other, CLI.Chain, zero, hi, lo);
+        DAG.getNode(OTFISD::CALL, DL, MVT::Other, CLI.Chain, hi, lo);
 
     SmallVector<CCValAssign, 16> RVLocs;
     CCState RetCCInfo(CLI.CallConv, CLI.IsVarArg, MF, RVLocs,
@@ -146,6 +145,25 @@ class OTFTargetLowering : public TargetLowering {
     RetCCInfo.AnalyzeCallResult(CLI.Ins, CC_OTF);
     assert(RVLocs.size() == 0);
     return Chain;
+  }
+  EVT getSetCCResultType(const DataLayout &, LLVMContext &,
+                         EVT) const override {
+    return MVT::i8;
+  }
+  MachineBasicBlock *
+  EmitInstrWithCustomInserter(MachineInstr &MI,
+                              MachineBasicBlock *MBB) const override {
+    switch (MI.getOpcode()) {
+    case OTF::CALL_SPLIT:
+      BuildMI(*MBB, MI, MI.getDebugLoc(),
+              MBB->getParent()->getSubtarget().getInstrInfo()->get(OTF::CALL))
+          .addImm(0)
+          .addGlobalAddress(MI.getOperand(0).getGlobal());
+      MI.eraseFromParent();
+      return MBB;
+    default:
+      llvm_unreachable("No custom inserter for this node");
+    }
   }
 
 public:
