@@ -41,12 +41,18 @@ define void @branch(i1 %x) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:  	CALL 1 __and_1
 ; CHECK-NEXT:  	CALL 1 __push_0
-; CHECK-NEXT:  	BR_EQ 1 2 LBB4_2 LBB4_3
-; CHECK-NEXT:  LBB4_3:
-; CHECK-NEXT:  	BR LBB4_1
+; CHECK-NEXT:  	BR_EQ 1 2 LBB4_2 LBB4_1
 ; CHECK-NEXT:  LBB4_1:                                 # %True
+; CHECK-NEXT:  	CALL 1 __set_0
+; CHECK-NEXT:  	CALL 0 __del_1
+; CHECK-NEXT:  	CALL 1 __set_0
+; CHECK-NEXT:  	CALL 0 __del_1
 ; CHECK-NEXT:  	CALL 0 external_func
 ; CHECK-NEXT:  LBB4_2:                                 # %False
+; CHECK-NEXT:  	CALL 1 __set_0
+; CHECK-NEXT:  	CALL 0 __del_1
+; CHECK-NEXT:  	CALL 1 __set_0
+; CHECK-NEXT:  	CALL 0 __del_1
 ; CHECK-NEXT:  	CALL 0 external_func_2
     br i1 %x, label %True, label %False
 True:

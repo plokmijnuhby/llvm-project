@@ -1,0 +1,8 @@
+#ifndef LLVM_LIB_TARGET_OTF_OTFREGISTERINFO_H
+#define LLVM_LIB_TARGET_OTF_OTFREGISTERINFO_H
+
+#define GET_REGINFO_ENUM
+#define GET_REGINFO_HEADER
+#include "OTFGenRegisterInfo.inc"
+
+#endif

@@ -1,13 +1,13 @@
 #include "OTFFrameLowering.h"
-#include "OTFMachineFunctionInfo.h"
 #include "OTFRegAlloc.h"
+#include "OTFTargetLowering.h"
+#include "OTFRegisterInfo.h"
 #include "TargetInfo/OTFTargetInfo.h"
-#include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/MC/MCContext.h"
@@ -23,8 +23,6 @@
 #define GET_INSTRINFO_CTOR_DTOR
 #include "OTFGenInstrInfo.inc"
 
-#define GET_REGINFO_ENUM
-#define GET_REGINFO_HEADER
 #define GET_REGINFO_TARGET_DESC
 #include "OTFGenRegisterInfo.inc"
 
@@ -32,9 +30,6 @@
 #include "OTFGenSDNodeInfo.inc"
 
 using namespace llvm;
-
-#define GET_CALLING_CONV_IMPL
-#include "OTFGenCallingConv.inc"
 
 class OTFRegisterInfo : public OTFGenRegisterInfo {
   bool eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
@@ -60,119 +55,38 @@ public:
 
 class OTFInstrInfo : public OTFGenInstrInfo {
   const OTFRegisterInfo RI;
+  bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
+                     MachineBasicBlock *&FBB,
+                     SmallVectorImpl<MachineOperand> &Cond,
+                     bool AllowModify = false) const override {
+    if (!MBB.empty() && MBB.instr_back().getOpcode() == OTF::BR) {
+      TBB = MBB.instr_back().getOperand(0).getMBB();
+      return false;
+    }
+    return true;
+  }
+
+  unsigned removeBranch(MachineBasicBlock &MBB,
+                        int *BytesRemoved = nullptr) const override {
+    MBB.instr_back().removeFromParent();
+    return 1;
+  }
+
+  unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                        MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
+                        const DebugLoc &DL,
+                        int *BytesAdded = nullptr) const override {
+    BuildMI(MBB, MBB.end(), DL,
+            MBB.getParent()->getSubtarget().getInstrInfo()->get(OTF::BR))
+        .addMBB(TBB);
+    return 1;
+  }
 
 public:
   OTFInstrInfo(const TargetSubtargetInfo &STI) : OTFGenInstrInfo(STI, RI) {}
 };
 
 class OTFSelectionDAG : public SelectionDAGTargetInfo {};
-
-class OTFTargetLowering : public TargetLowering {
-  SDValue
-  LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
-                       const SmallVectorImpl<ISD::InputArg> &Ins,
-                       const SDLoc &DL, SelectionDAG &DAG,
-                       SmallVectorImpl<SDValue> &InVals) const override {
-    MachineFunction &MF = DAG.getMachineFunction();
-    OTFMachineFunctionInfo *MFI = MF.getInfo<OTFMachineFunctionInfo>();
-    SmallVector<CCValAssign, 16> ArgLocs;
-    CCState CCInfo(CallConv, isVarArg, MF, ArgLocs, *DAG.getContext());
-    CCInfo.AnalyzeFormalArguments(Ins, CC_OTF);
-
-    MFI->num_args = ArgLocs.size();
-    MachineRegisterInfo &RegInfo = MF.getRegInfo();
-    for (CCValAssign &VA : ArgLocs) {
-      if (VA.isRegLoc()) {
-        Register VR = RegInfo.createVirtualRegister(&OTF::GPR8RegClass);
-        MCPhysReg PR = VA.getLocReg();
-        RegInfo.addLiveIn(PR, VR);
-        InVals.push_back(DAG.getCopyFromReg(Chain, DL, VR, MVT::i8));
-      } else {
-        reportFatalInternalError("Stack arguments not implemented yet");
-      }
-    }
-    return Chain;
-  }
-  SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
-                      const SmallVectorImpl<ISD::OutputArg> &Outs,
-                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
-                      SelectionDAG &DAG) const override {
-    MachineFunction &MF = DAG.getMachineFunction();
-    SmallVector<CCValAssign, 16> RetLocs;
-    CCState CCInfo(CallConv, isVarArg, MF, RetLocs, *DAG.getContext());
-    CCInfo.AnalyzeReturn(Outs, CC_OTF);
-    SmallVector<SDValue> Ops;
-    SDValue Glue;
-    for (unsigned i = 0; i < RetLocs.size(); i++) {
-      CCValAssign VA = RetLocs[i];
-      if (VA.isRegLoc()) {
-        Register reg = VA.getLocReg();
-        Chain = DAG.getCopyToReg(Chain, DL, reg, OutVals[i], Glue);
-        Glue = Chain.getValue(1);
-        Ops.push_back(DAG.getRegister(reg, MVT::i8));
-      } else {
-        reportFatalInternalError("Stack returns not implemented yet");
-      }
-    }
-    Ops.push_back(Chain);
-    if (Glue.getNode()) {
-      Ops.push_back(Glue);
-    }
-    return SDValue(DAG.getMachineNode(OTF::RET, DL, MVT::Other, Ops), 0);
-  }
-  SDValue LowerCall(CallLoweringInfo &CLI,
-                    SmallVectorImpl<SDValue> &InVals) const override {
-    SelectionDAG &DAG = CLI.DAG;
-    SDLoc DL = CLI.DL;
-    MachineFunction &MF = DAG.getMachineFunction();
-    SmallVector<CCValAssign, 16> ArgLocs;
-    CCState CCInfo(CLI.CallConv, CLI.IsVarArg, MF, ArgLocs, *DAG.getContext());
-    CCInfo.AnalyzeCallOperands(CLI.Outs, CC_OTF);
-    assert(ArgLocs.size() == 0);
-    SDValue hi, lo;
-    if (auto *G = dyn_cast<GlobalAddressSDNode>(CLI.Callee)) {
-      hi = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i8, 0, 0);
-      lo = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i8, 0, 1);
-    } else {
-      reportFatalInternalError("Non global address call not implemented yet");
-    }
-    SDValue Chain =
-        DAG.getNode(OTFISD::CALL, DL, MVT::Other, CLI.Chain, hi, lo);
-
-    SmallVector<CCValAssign, 16> RVLocs;
-    CCState RetCCInfo(CLI.CallConv, CLI.IsVarArg, MF, RVLocs,
-                      *DAG.getContext());
-    RetCCInfo.AnalyzeCallResult(CLI.Ins, CC_OTF);
-    assert(RVLocs.size() == 0);
-    return Chain;
-  }
-  EVT getSetCCResultType(const DataLayout &, LLVMContext &,
-                         EVT) const override {
-    return MVT::i8;
-  }
-  MachineBasicBlock *
-  EmitInstrWithCustomInserter(MachineInstr &MI,
-                              MachineBasicBlock *MBB) const override {
-    switch (MI.getOpcode()) {
-    case OTF::CALL_SPLIT:
-      BuildMI(*MBB, MI, MI.getDebugLoc(),
-              MBB->getParent()->getSubtarget().getInstrInfo()->get(OTF::CALL))
-          .addImm(0)
-          .addGlobalAddress(MI.getOperand(0).getGlobal());
-      MI.eraseFromParent();
-      return MBB;
-    default:
-      llvm_unreachable("No custom inserter for this node");
-    }
-  }
-
-public:
-  OTFTargetLowering(TargetMachine &TM, TargetSubtargetInfo &STI)
-      : TargetLowering(TM, STI) {
-    addRegisterClass(MVT::i8, &OTF::GPR8RegClass);
-    computeRegisterProperties(STI.getRegisterInfo());
-  }
-};
 
 class OTFSubtarget : public OTFGenSubtargetInfo {
   OTFFrameLowering FrameLowering;
@@ -231,7 +145,7 @@ class OTFPassConfig : public TargetPassConfig {
     addPass(new OTFISelLegacy(getTM<TargetMachine>(), getOptLevel()));
     return false;
   }
-  void addPreEmitPass2() { addPass(new OTFRegAlloc()); }
+  void addPreEmitPass2() override { addPass(new OTFRegAlloc()); }
 
 public:
   OTFPassConfig(TargetMachine &TM, PassManagerBase &PM)

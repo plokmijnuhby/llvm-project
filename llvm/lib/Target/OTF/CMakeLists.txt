@@ -16,6 +16,7 @@ add_llvm_target(OTFCodeGen
   OTFAsmPrinter.cpp
   OTFRegAlloc.cpp
   OTFTargetMachine.cpp
+  OTFTargetLowering.cpp
 
   ADD_TO_COMPONENT
   OTF

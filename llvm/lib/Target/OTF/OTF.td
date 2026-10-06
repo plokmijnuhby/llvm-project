@@ -54,12 +54,18 @@ def BR_EQ_FALLTHROUGH : OTFInst<(ins GPR8:$left, GPR8:$right, other:$target), (o
   let isBranch = true;
   let isCompare = true;
   let isTerminator = true;
+  let usesCustomInserter = true;
+}
+def BR_EQ_PSEUDO : OTFInst<(ins GPR8:$left, GPR8:$right, other:$true, other:$false), (outs)> {
+  let isPseudo = true;
+  let isBranch = true;
+  let isCompare = true;
+  let isTerminator = true;
 }
 def BR_EQ : OTFInst<(ins imm8:$left, imm8:$right, other:$true, other:$false), (outs)> {
   let AsmString = "BR_EQ $left $right $true $false";
   let isBranch = true;
   let isCompare = true;
-  let isBarrier = true;
   let isTerminator = true;
 }
 def BR : OTFInst<(ins other:$target), (outs)> {
@@ -68,6 +74,7 @@ def BR : OTFInst<(ins other:$target), (outs)> {
   let isBranch = true;
   let isBarrier = true;
   let isTerminator = true;
+  let usesCustomInserter = true;
 }
 def CALL_SPLIT : OTFInst<(ins GPR8:$lookupHi, GPR8:$lookupLo), (outs)> {
   let Pattern = [(callNode i8:$lookupHi, i8:$lookupLo)];

@@ -8,17 +8,21 @@
 #define GET_INSTRINFO_ENUM
 #include "OTFGenInstrInfo.inc"
 
+#define GET_REGINFO_HEADER
+#include "OTFGenRegisterInfo.inc"
+
 using namespace llvm;
 
-SmallVector<Register> OTFRegAlloc::processBlock(MachineBasicBlock &MBB) {
+void OTFRegAlloc::processBlock(MachineBasicBlock &MBB,
+                               SmallVector<unsigned> inputs) {
   MachineFunction &MF = *MBB.getParent();
   MCContext &context = MF.getContext();
-  SmallVector<Register> in_use;
+  const MCInstrDesc &callInstr =
+      MF.getSubtarget().getInstrInfo()->get(OTF::CALL);
+  SmallVector<unsigned> in_use;
   auto call = [&](MachineInstr &I, DebugLoc DL, size_t index,
                   const char *name) {
-    BuildMI(MBB, I, DL, MF.getSubtarget().getInstrInfo()->get(OTF::CALL))
-        .addImm(index)
-        .addExternalSymbol(name);
+    BuildMI(MBB, I, DL, callInstr).addImm(index).addExternalSymbol(name);
   };
   for (MachineInstr &MI : make_early_inc_range(reverse(MBB))) {
     DebugLoc DL = MI.getDebugLoc();
@@ -44,7 +48,7 @@ SmallVector<Register> OTFRegAlloc::processBlock(MachineBasicBlock &MBB) {
           const char *stored_name = context.allocateString(lookup_name).data();
           call(MI, DL, i + 1, stored_name);
           call(MI, DL, i + 1, "__unset_magic");
-          in_use[i] == MI.getOperand(1).getReg();
+          in_use[i] = MI.getOperand(1).getReg();
           break;
         }
       }
@@ -57,7 +61,7 @@ SmallVector<Register> OTFRegAlloc::processBlock(MachineBasicBlock &MBB) {
               (Twine("__and_") + Twine(MI.getOperand(2).getImm())).str();
           const char *stored_name = context.allocateString(lookup_name).data();
           call(MI, DL, i + 1, stored_name);
-          in_use[i] == MI.getOperand(1).getReg();
+          in_use[i] = MI.getOperand(1).getReg();
           break;
         }
       }
@@ -68,24 +72,23 @@ SmallVector<Register> OTFRegAlloc::processBlock(MachineBasicBlock &MBB) {
         in_use.push_back(MO.getReg());
       MI.eraseFromParent();
       break;
-    case OTF::BR_EQ_FALLTHROUGH: {
-      MachineBasicBlock *tail = MBB.splitAt(MI);
-      assert(tail->getLiveIns().empty());
+    case OTF::BR_EQ_PSEUDO: {
       assert(MI.getOperand(2).getMBB()->getLiveIns().empty());
-      processBlock(*tail);
-      processBlock(*MI.getOperand(2).getMBB());
+      assert(MI.getOperand(3).getMBB()->getLiveIns().empty());
       in_use.push_back(MI.getOperand(0).getReg());
       in_use.push_back(MI.getOperand(1).getReg());
+      processBlock(*MI.getOperand(2).getMBB(), in_use);
+      processBlock(*MI.getOperand(3).getMBB(), in_use);
       BuildMI(MBB, MI, DL, MF.getSubtarget().getInstrInfo()->get(OTF::BR_EQ))
           .addImm(1)
           .addImm(2)
           .add(MI.getOperand(2))
-          .addMBB(tail);
+          .add(MI.getOperand(3));
       MI.eraseFromParent();
       break;
     }
     case OTF::BR:
-      processBlock(*MI.getOperand(0).getMBB());
+      processBlock(*MI.getOperand(0).getMBB(), in_use);
       for (auto &reg_pair : MI.getOperand(0).getMBB()->getLiveIns())
         in_use.push_back(reg_pair.PhysReg);
       break;
@@ -95,35 +98,36 @@ SmallVector<Register> OTFRegAlloc::processBlock(MachineBasicBlock &MBB) {
       llvm_unreachable("An instruction was not processed correctly");
     }
   }
-  return in_use;
-}
-
-bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
-  MCContext &context = MF.getContext();
-  MachineBasicBlock &front = MF.front();
-  SmallVector<Register> in_use = processBlock(front);
-
-  auto iter_pos = front.begin();
+  auto iter_pos = MBB.begin();
   DebugLoc DL;
-  if (iter_pos != front.end()) {
+  if (iter_pos != MBB.end()) {
     DL = iter_pos->getDebugLoc();
   }
-  size_t num_args = MF.getInfo<OTFMachineFunctionInfo>()->num_args;
-  for (size_t i = 0; i < num_args; i++) {
+  for (Register input : inputs) {
     bool used = false;
     for (Register reg : in_use) {
-      if (i == context.getRegisterInfo()->getEncodingValue(reg)) {
+      if (reg == input) {
         used = true;
         break;
       }
     }
     if (!used) {
-      const MCInstrDesc &call =
-          MF.getSubtarget().getInstrInfo()->get(OTF::CALL);
-      BuildMI(front, iter_pos, DL, call).addImm(1).addExternalSymbol("__set_0");
-      BuildMI(front, iter_pos, DL, call).addImm(0).addExternalSymbol("__del_1");
+      BuildMI(MBB, iter_pos, DL, callInstr)
+          .addImm(1)
+          .addExternalSymbol("__set_0");
+      BuildMI(MBB, iter_pos, DL, callInstr)
+          .addImm(0)
+          .addExternalSymbol("__del_1");
     }
   }
+}
+
+bool OTFRegAlloc::runOnMachineFunction(MachineFunction &MF) {
+  MachineBasicBlock &front = MF.front();
+  size_t num_args = MF.getInfo<OTFMachineFunctionInfo>()->num_args;
+  auto *inputs = new SmallVector<unsigned>(
+      OTF::GPR8RegClass.getRegisters().take_front(num_args));
+  processBlock(front, *inputs);
   return true;
 }
 
