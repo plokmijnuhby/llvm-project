@@ -3,6 +3,7 @@
 #include "OTFRegisterInfo.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 
 #define GET_INSTRINFO_ENUM
@@ -105,24 +106,39 @@ OTFTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
         .addGlobalAddress(MI.getOperand(0).getGlobal());
     MI.eraseFromParent();
     return MBB;
-  case OTF::BR_EQ_FALLTHROUGH: {
-    MachineBasicBlock *tail = MF->CreateMachineBasicBlock(MBB->getBasicBlock());
-    MF->insert(++MachineFunction::iterator(MBB), tail);
-    tail->splice(tail->begin(), MBB, MachineBasicBlock::iterator(&MI),
-                 MBB->end());
+  case OTF::BR_EQ: {
+    uint8_t value = MI.getOperand(1).getImm();
+    MachineBasicBlock *true_path = MI.getOperand(2).getMBB();
+    MachineBasicBlock *false_path =
+        MF->CreateMachineBasicBlock(MBB->getBasicBlock());
+    MF->insert(++MachineFunction::iterator(MBB), false_path);
+    false_path->splice(false_path->begin(), MBB,
+                       MachineBasicBlock::iterator(&MI), MBB->end());
     for (MachineBasicBlock *succ : MBB->successors()) {
       MBB->removeSuccessor(succ);
     }
-    MBB->addSuccessor(tail);
-    MBB->addSuccessor(MI.getOperand(2).getMBB());
+    MBB->addSuccessor(true_path);
+    MBB->addSuccessor(false_path);
+    auto *MFI = MF->getInfo<OTFMachineFunctionInfo>();
+    MachineJumpTableInfo *JTI =
+        MF->getOrCreateJumpTableInfo(MachineJumpTableInfo::EK_BlockAddress);
+    unsigned table_number = JTI->createJumpTableIndex({true_path, false_path});
     BuildMI(*MBB, MBB->end(), MI.getDebugLoc(),
-            MF->getSubtarget().getInstrInfo()->get(OTF::BR_EQ_PSEUDO))
+            MF->getSubtarget().getInstrInfo()->get(OTF::BR_COND_PSEUDO))
         .add(MI.getOperand(0))
-        .add(MI.getOperand(1))
-        .add(MI.getOperand(2))
-        .addMBB(tail);
+        .addImm(MFI->lookups.size())
+        .addJumpTableIndex(table_number);
     MI.eraseFromParent();
-    return tail;
+    Lookup lookup = {table_number};
+    if (value != 0) {
+      lookup.ranges.push_back({0, (uint8_t)(value - 1), 1});
+    }
+    lookup.ranges.push_back({value, value, 0});
+    if (value != 255) {
+      lookup.ranges.push_back({(uint8_t)(value + 1), 255, 1});
+    }
+    MFI->lookups.push_back(lookup);
+    return false_path;
   }
   case OTF::BR: {
     MBB->addSuccessor(MI.getOperand(0).getMBB());

@@ -1,7 +1,7 @@
 #include "OTFFrameLowering.h"
 #include "OTFRegAlloc.h"
-#include "OTFTargetLowering.h"
 #include "OTFRegisterInfo.h"
+#include "OTFTargetLowering.h"
 #include "TargetInfo/OTFTargetInfo.h"
 #include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"

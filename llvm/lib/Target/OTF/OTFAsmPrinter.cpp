@@ -1,5 +1,7 @@
+#include "OTFMachineFunctionInfo.h"
 #include "TargetInfo/OTFTargetInfo.h"
 #include "llvm/CodeGen/AsmPrinter.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -34,6 +36,20 @@ class OTFAsmPrinter : public AsmPrinter {
       }
     }
     OutStreamer.get()->emitInstruction(instruction, getSubtargetInfo());
+  }
+  void emitFunctionBodyStart() override {
+    for (Lookup lookup : MF->getInfo<OTFMachineFunctionInfo>()->lookups) {
+      OutStreamer->emitLabel(OutContext.createTempSymbol("lookup"));
+      for (Range range : lookup.ranges) {
+        OutStreamer->emitInt16(range.start);
+        OutStreamer->emitInt16(range.end);
+        MachineBasicBlock *MBB = MF->getJumpTableInfo()
+                                     ->getJumpTables()[lookup.table_number]
+                                     .MBBs[range.table_index];
+        MBB->setLabelMustBeEmitted();
+        OutStreamer->emitSymbolValue(MBB->getSymbol(), 2);
+      }
+    }
   }
 
 public:

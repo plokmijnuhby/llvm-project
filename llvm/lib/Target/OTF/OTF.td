@@ -48,24 +48,26 @@ def AND : OTFInst<(ins GPR8:$a, imm8:$b), (outs GPR8:$out)> {
 }
 
 def other : Operand<OtherVT>;
-def BR_EQ_FALLTHROUGH : OTFInst<(ins GPR8:$left, GPR8:$right, other:$target), (outs)> {
-  let Pattern = [(brcc SETEQ, i8:$left, i8:$right, bb:$target)];
+def BR_EQ : OTFInst<(ins GPR8:$left, imm8:$right, other:$target), (outs)> {
+  let Pattern = [(brcc SETEQ, i8:$left, imm8:$right, bb:$target)];
   let isPseudo = true;
   let isBranch = true;
   let isCompare = true;
   let isTerminator = true;
   let usesCustomInserter = true;
 }
-def BR_EQ_PSEUDO : OTFInst<(ins GPR8:$left, GPR8:$right, other:$true, other:$false), (outs)> {
+def BR_COND_PSEUDO : OTFInst<(ins GPR8:$value, imm16:$lookup, other:$jt), (outs)> {
   let isPseudo = true;
   let isBranch = true;
   let isCompare = true;
+  let isBarrier = true;
   let isTerminator = true;
 }
-def BR_EQ : OTFInst<(ins imm8:$left, imm8:$right, other:$true, other:$false), (outs)> {
-  let AsmString = "BR_EQ $left $right $true $false";
+def BR_COND : OTFInst<(ins imm8:$value, imm16:$lookup), (outs)> {
+  let AsmString = "BR_COND $value $lookup";
   let isBranch = true;
   let isCompare = true;
+  let isBarrier = true;
   let isTerminator = true;
 }
 def BR : OTFInst<(ins other:$target), (outs)> {

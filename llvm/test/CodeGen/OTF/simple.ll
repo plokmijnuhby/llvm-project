@@ -38,22 +38,26 @@ define void @call() {
 
 define void @branch(i1 %x) {
 ; CHECK-LABEL: branch:
-; CHECK:       # %bb.0:
+; CHECK:       Llookup0:
+; CHECK-NEXT:  	.short	0
+; CHECK-NEXT:  	.short	0
+; CHECK-NEXT:  	.short	LBB4_2
+; CHECK-NEXT:  	.short	1
+; CHECK-NEXT:  	.short	255
+; CHECK-NEXT:  	.short	LBB4_1
+; CHECK-NEXT:  # %bb.0:
 ; CHECK-NEXT:  	CALL 1 __and_1
-; CHECK-NEXT:  	CALL 1 __push_0
-; CHECK-NEXT:  	BR_EQ 1 2 LBB4_2 LBB4_1
-; CHECK-NEXT:  LBB4_1:                                 # %True
-; CHECK-NEXT:  	CALL 1 __set_0
-; CHECK-NEXT:  	CALL 0 __del_1
-; CHECK-NEXT:  	CALL 1 __set_0
-; CHECK-NEXT:  	CALL 0 __del_1
-; CHECK-NEXT:  	CALL 0 external_func
+; CHECK-NEXT:  	BR_COND 1 0
 ; CHECK-NEXT:  LBB4_2:                                 # %False
-; CHECK-NEXT:  	CALL 1 __set_0
-; CHECK-NEXT:  	CALL 0 __del_1
+; CHECK-NEXT:                                          # Label of block must be emitted
 ; CHECK-NEXT:  	CALL 1 __set_0
 ; CHECK-NEXT:  	CALL 0 __del_1
 ; CHECK-NEXT:  	CALL 0 external_func_2
+; CHECK-NEXT:  LBB4_1:                                 # %True
+; CHECK-NEXT:                                          # Label of block must be emitted
+; CHECK-NEXT:  	CALL 1 __set_0
+; CHECK-NEXT:  	CALL 0 __del_1
+; CHECK-NEXT:  	CALL 0 external_func
     br i1 %x, label %True, label %False
 True:
     call void @external_func()

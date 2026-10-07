@@ -1,5 +1,6 @@
 #include "OTFRegAlloc.h"
 #include "OTFMachineFunctionInfo.h"
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -72,18 +73,18 @@ void OTFRegAlloc::processBlock(MachineBasicBlock &MBB,
         in_use.push_back(MO.getReg());
       MI.eraseFromParent();
       break;
-    case OTF::BR_EQ_PSEUDO: {
-      assert(MI.getOperand(2).getMBB()->getLiveIns().empty());
-      assert(MI.getOperand(3).getMBB()->getLiveIns().empty());
+    case OTF::BR_COND_PSEUDO: {
       in_use.push_back(MI.getOperand(0).getReg());
-      in_use.push_back(MI.getOperand(1).getReg());
-      processBlock(*MI.getOperand(2).getMBB(), in_use);
-      processBlock(*MI.getOperand(3).getMBB(), in_use);
-      BuildMI(MBB, MI, DL, MF.getSubtarget().getInstrInfo()->get(OTF::BR_EQ))
+      for (MachineBasicBlock *block :
+           MF.getJumpTableInfo()
+               ->getJumpTables()[MI.getOperand(2).getIndex()]
+               .MBBs) {
+        assert(block->getLiveIns().empty());
+        processBlock(*block, in_use);
+      }
+      BuildMI(MBB, MI, DL, MF.getSubtarget().getInstrInfo()->get(OTF::BR_COND))
           .addImm(1)
-          .addImm(2)
-          .add(MI.getOperand(2))
-          .add(MI.getOperand(3));
+          .add(MI.getOperand(1));
       MI.eraseFromParent();
       break;
     }
